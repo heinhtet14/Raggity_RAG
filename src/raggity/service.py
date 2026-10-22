@@ -3,17 +3,25 @@ can use it directly."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from raggity.config import Settings
 from raggity.generation import Answer, answer
 from raggity.ingest.chunking import chunk_sections
 from raggity.ingest.loaders import Section, load
+from raggity.observability import CHUNKS_INGESTED, EMPTY_RESULTS, LLM_ERRORS, Timings
 from raggity.providers.embeddings import Embedder, make_embedder
-from raggity.providers.llm import LLM, make_llm
+from raggity.providers.llm import LLM, LLMError, make_llm
 from raggity.retrieval.rerank import Reranker, make_reranker
 from raggity.retrieval.search import Mode, Retriever, SearchResult, Transform
 from raggity.store.sqlite_store import Collection, Document, Store
+
+
+@dataclass
+class Ingested:
+    document: Document
+    timings: Timings
 
 
 class RagService:
@@ -26,7 +34,9 @@ class RagService:
         reranker: Reranker | None = None,
     ) -> None:
         self.settings = settings
-        self.store = store or Store(settings.data_dir / "raggity.sqlite3")
+        self.store = store or Store(
+            settings.data_dir / "raggity.sqlite3", vector_cache=settings.vector_cache
+        )
         self.embedder = embedder or make_embedder(settings)
         self.llm = llm or make_llm(settings)
         self.reranker = reranker or make_reranker(settings, self.llm)
@@ -46,15 +56,20 @@ class RagService:
         chunker: str | None = None,
         chunk_size: int | None = None,
         chunk_overlap: int | None = None,
-    ) -> Document:
+    ) -> Ingested:
+        t = Timings()
+        with t.stage("load"):
+            sections = load(filename, data)
         return self._ingest(
-            collection, filename, load(filename, data), metadata, chunker, chunk_size, chunk_overlap
+            collection, filename, sections, metadata, chunker, chunk_size, chunk_overlap, t
         )
 
     def ingest_text(
         self, collection: Collection, filename: str, text: str, metadata: dict[str, Any]
-    ) -> Document:
-        return self._ingest(collection, filename, [Section(text)], metadata, None, None, None)
+    ) -> Ingested:
+        return self._ingest(
+            collection, filename, [Section(text)], metadata, None, None, None, Timings()
+        )
 
     def _ingest(
         self,
@@ -65,22 +80,28 @@ class RagService:
         chunker: str | None,
         chunk_size: int | None,
         chunk_overlap: int | None,
-    ) -> Document:
+        t: Timings,
+    ) -> Ingested:
         if collection.embedder != self.embedder.name:
             raise ValueError(
                 f"collection uses {collection.embedder}; "
                 f"the service is running {self.embedder.name}"
             )
-        chunks = chunk_sections(
-            sections,
-            chunker or self.settings.chunker,
-            chunk_size or self.settings.chunk_size,
-            chunk_overlap if chunk_overlap is not None else self.settings.chunk_overlap,
-        )
+        with t.stage("chunk"):
+            chunks = chunk_sections(
+                sections,
+                chunker or self.settings.chunker,
+                chunk_size or self.settings.chunk_size,
+                chunk_overlap if chunk_overlap is not None else self.settings.chunk_overlap,
+            )
         if not chunks:
             raise ValueError(f"no text could be extracted from {filename!r}")
-        embeddings = self.embedder.embed_documents([chunk.text for chunk in chunks])
-        return self.store.add_document(collection, filename, metadata, chunks, embeddings)
+        with t.stage("embed_documents"):
+            embeddings = self.embedder.embed_documents([chunk.text for chunk in chunks])
+        with t.stage("store"):
+            document = self.store.add_document(collection, filename, metadata, chunks, embeddings)
+        CHUNKS_INGESTED.inc(len(chunks))
+        return Ingested(document, t)
 
     def search(
         self,
@@ -92,9 +113,18 @@ class RagService:
         rerank: bool,
         metadata_filter: dict[str, Any],
     ) -> SearchResult:
-        return self.retriever.search(
+        result = self.retriever.search(
             collection, query, top_k, mode, transform, rerank, metadata_filter or None
         )
+        if not result.hits:
+            EMPTY_RESULTS.labels(mode).inc()
+        return result
 
     def answer(self, question: str, result: SearchResult) -> Answer:
-        return answer(self.llm, question, result.hits)
+        """Generation is timed into the same Timings as the search that fed it."""
+        with result.timings.stage("generate"):
+            try:
+                return answer(self.llm, question, result.hits)
+            except LLMError:
+                LLM_ERRORS.inc()
+                raise

@@ -1,0 +1,35 @@
+{"id": "where-now", "question": "Where does Hein work now?", "relevant": ["experience/magick-mind.md", "profile.md"], "tags": ["paraphrase"]}
+{"id": "based", "question": "Where is he based?", "relevant": ["profile.md"], "tags": ["paraphrase"]}
+{"id": "toeic", "question": "What was his TOEIC score?", "relevant": ["profile.md"], "tags": ["exact-term"]}
+{"id": "university", "question": "Which university did he graduate from?", "relevant": ["profile.md"], "tags": ["paraphrase"]}
+{"id": "gpa", "question": "What GPA did he graduate with?", "relevant": ["profile.md"], "tags": ["exact-term"]}
+{"id": "awards", "question": "Which awards or prizes has he won?", "relevant": ["profile.md"], "tags": ["paraphrase"]}
+{"id": "competition", "question": "What robotics competition did he found?", "relevant": ["profile.md"], "tags": ["paraphrase"]}
+{"id": "policy-rate", "question": "How fast does the humanoid's walking policy run on the real robot?", "relevant": ["projects/tet-hlan-rl.md", "experience/magick-robotics.md"], "tags": ["paraphrase"]}
+{"id": "sim-check", "question": "Which simulator was used to check the walking policy before putting it on hardware?", "relevant": ["projects/tet-hlan-rl.md"], "tags": ["paraphrase"]}
+{"id": "motor-drivers", "question": "What motor drivers does the humanoid's control stack use?", "relevant": ["projects/tet-hlan-ros.md"], "tags": ["paraphrase"]}
+{"id": "jetson-speedup", "question": "What speedup did he get on the Jetson Nano?", "relevant": ["projects/edge-dl.md"], "tags": ["exact-term"]}
+{"id": "jetson-llms", "question": "Which small language models were benchmarked on the Jetson?", "relevant": ["projects/edge-dl.md"], "tags": ["exact-term"]}
+{"id": "mindroid-what", "question": "What is Mindroid?", "relevant": ["projects/mindroid.md"], "tags": ["exact-term"]}
+{"id": "mindroid-lang", "question": "What programming language is his agent SDK written in?", "relevant": ["projects/mindroid.md", "experience/magick-mind.md", "profile.md"], "tags": ["paraphrase"]}
+{"id": "slam", "question": "Has he worked on visual SLAM?", "relevant": ["projects/orb-slam.md", "experience/panasonic-research-lab.md"], "tags": ["exact-term"]}
+{"id": "panasonic", "question": "What did he do at Panasonic?", "relevant": ["experience/panasonic-research-lab.md", "projects/orb-slam.md"], "tags": ["exact-term"]}
+{"id": "satellite", "question": "Did he ever write firmware for satellites?", "relevant": ["projects/satellite-fw.md", "experience/mu-space-corp.md"], "tags": ["paraphrase"]}
+{"id": "stm32", "question": "Which microcontroller family did the spacecraft firmware target?", "relevant": ["projects/satellite-fw.md", "experience/mu-space-corp.md"], "tags": ["paraphrase"]}
+{"id": "memory-compare", "question": "Which agent memory frameworks has he compared?", "relevant": ["projects/agent-memory.md"], "tags": ["paraphrase"]}
+{"id": "redis", "question": "How did he fix the Redis Cluster cross-slot problem?", "relevant": ["projects/agent-memory.md"], "tags": ["exact-term"]}
+{"id": "memory-bench", "question": "Which benchmark is primary in his memory evaluation design?", "relevant": ["projects/memory-eval.md"], "tags": ["paraphrase"]}
+{"id": "rag-workers", "question": "What does his document ingestion pipeline run on?", "relevant": ["projects/rag-ingest.md"], "tags": ["paraphrase"]}
+{"id": "reranker", "question": "Which reranker does the knowledge base pipeline use?", "relevant": ["projects/rag-ingest.md"], "tags": ["exact-term"]}
+{"id": "voice-sessions", "question": "How many concurrent sessions does the voice runtime handle?", "relevant": ["projects/voice-runtime.md"], "tags": ["exact-term"]}
+{"id": "barge-in", "question": "What happens when a user interrupts the robot while it is talking?", "relevant": ["projects/voice-runtime.md"], "tags": ["paraphrase"]}
+{"id": "robot-arm", "question": "Which robot arm did the LLM-to-robotics adapter use?", "relevant": ["projects/fc-robot.md"], "tags": ["exact-term"]}
+{"id": "zenoh", "question": "What transport does the robot side of the adapter use?", "relevant": ["projects/fc-robot.md"], "tags": ["paraphrase"]}
+{"id": "credentials", "question": "How are tenant credentials kept off the robots?", "relevant": ["projects/token-broker.md"], "tags": ["paraphrase"]}
+{"id": "broker-db", "question": "What database does the device pairing service use?", "relevant": ["projects/token-broker.md"], "tags": ["paraphrase"]}
+{"id": "web-console", "question": "What did he build for the developer platform's web app?", "relevant": ["projects/web-console.md"], "tags": ["paraphrase"]}
+{"id": "this-site", "question": "How is this website's ask feature built?", "relevant": ["projects/portfolio.md"], "tags": ["paraphrase"]}
+{"id": "speech", "question": "What research has he done on speech?", "relevant": ["projects/speech-conversion.md", "experience/kmutt-deep-learning-lab.md"], "tags": ["paraphrase"]}
+{"id": "recursive-lm", "question": "What is the deterministic recursive LM?", "relevant": ["projects/recursive-lm.md"], "tags": ["exact-term"]}
+{"id": "kubernetes", "question": "Does he have Kubernetes experience?", "relevant": ["skills.md", "projects/voice-runtime.md", "projects/rag-ingest.md"], "tags": ["exact-term", "multi-doc"]}
+{"id": "frontend", "question": "Which frontend frameworks does he use?", "relevant": ["skills.md", "projects/web-console.md", "projects/portfolio.md"], "tags": ["paraphrase", "multi-doc"]}

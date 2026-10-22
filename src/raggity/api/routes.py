@@ -7,6 +7,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 
+from raggity.api.auth import require_api_key
 from raggity.api.schemas import (
     AnswerResponse,
     ChunkOut,
@@ -19,12 +20,12 @@ from raggity.api.schemas import (
 )
 from raggity.ingest.loaders import UnsupportedFileType
 from raggity.retrieval.search import Hit
-from raggity.service import RagService
+from raggity.service import Ingested, RagService
 from raggity.store.sqlite_store import Collection, Document, NotFound
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
-router = APIRouter(prefix="/v1")
+router = APIRouter(prefix="/v1", dependencies=[Depends(require_api_key)])
 
 
 def get_service(request: Request) -> RagService:
@@ -54,14 +55,19 @@ def _collection_out(service: RagService, c: Collection) -> CollectionOut:
     )
 
 
-def _document_out(d: Document) -> DocumentOut:
+def _document_out(d: Document, timings_ms: dict[str, float] | None = None) -> DocumentOut:
     return DocumentOut(
         id=d.id,
         filename=d.filename,
         metadata=d.metadata,
         chunk_count=d.chunk_count,
         created_at=d.created_at,
+        timings_ms=timings_ms,
     )
+
+
+def _ingested_out(ingested: Ingested) -> DocumentOut:
+    return _document_out(ingested.document, ingested.timings.as_ms())
 
 
 def _chunk_out(hit: Hit) -> ChunkOut:
@@ -125,24 +131,24 @@ def upload_document(
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "file is larger than 50 MB")
     meta = _parse_metadata(metadata)
     try:
-        document = service.ingest_file(
+        ingested = service.ingest_file(
             collection, file.filename or "upload", data, meta, chunker, chunk_size, chunk_overlap
         )
     except UnsupportedFileType as exc:
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
-    return _document_out(document)
+    return _ingested_out(ingested)
 
 
 @router.post("/collections/{collection_id}/documents/text", status_code=status.HTTP_201_CREATED)
 def add_text(collection_id: str, body: TextDocument, service: Service) -> DocumentOut:
     collection = _collection(service, collection_id)
     try:
-        document = service.ingest_text(collection, body.filename, body.text, body.metadata)
+        ingested = service.ingest_text(collection, body.filename, body.text, body.metadata)
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
-    return _document_out(document)
+    return _ingested_out(ingested)
 
 
 @router.get("/collections/{collection_id}/documents")
@@ -181,7 +187,11 @@ def search(collection_id: str, body: SearchRequest, service: Service) -> SearchR
     and writes its own reply in its own voice."""
     collection = _collection(service, collection_id)
     result = _run_search(service, collection, body)
-    return SearchResponse(queries=result.queries, results=[_chunk_out(h) for h in result.hits])
+    return SearchResponse(
+        queries=result.queries,
+        results=[_chunk_out(h) for h in result.hits],
+        timings_ms=result.timings.as_ms(),
+    )
 
 
 @router.post("/collections/{collection_id}/answer")
@@ -197,6 +207,7 @@ def answer(collection_id: str, body: SearchRequest, service: Service) -> AnswerR
         sources=sources,
         queries=result.queries,
         model=service.llm.name,
+        timings_ms=result.timings.as_ms(),
     )
 
 

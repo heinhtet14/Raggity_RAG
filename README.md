@@ -98,6 +98,39 @@ The Anthropic provider streams the response, sets `output_config.effort` from
 `mode`: `dense` | `keyword` | `hybrid`. `transform`: `none` | `multi_query` | `hyde`.
 `filter`: exact match on document metadata, e.g. `{"user_id": "u1"}`.
 
+## Operating it
+
+- **Auth.** Set `RAGGITY_API_KEY` and every `/v1` route and `/metrics` requires
+  `Authorization: Bearer <key>` (or `x-api-key`). `/healthz` stays open for liveness probes.
+  This is service-to-service auth for your gateway, not visitor auth. Run Raggity on a
+  private network either way.
+- **Timings.** Every search, answer and upload response carries `timings_ms`, with time
+  per stage (`load_vectors`, `embed_query`, `dense_scoring`, `bm25`, `rerank`, `generate`…)
+  and a `total`.
+- **Metrics.** `/metrics` serves Prometheus histograms: `raggity_stage_seconds{stage}`
+  and `raggity_request_seconds{method,route,status}`, plus counters for ingested chunks,
+  empty results and LLM errors. Routes are labelled by template, so collection ids
+  never blow up the label set.
+- **Vector cache.** `RAGGITY_VECTOR_CACHE=true` (the default) keeps each collection's
+  matrix in memory until the collection changes. Each collection has a version counter
+  in SQLite, so a write from another worker process invalidates the cache too.
+
+### Rebuilding a collection from a folder
+
+```bash
+node scripts/export_portfolio.mjs ~/hein-htet-portfolio corpus/portfolio   # site data → Markdown
+RAGGITY_API_KEY=... uv run raggity-ingest corpus/portfolio --collection portfolio --recreate
+```
+
+### Evaluating retrieval
+
+```bash
+uv run raggity-eval corpus/portfolio eval/portfolio.jsonl --modes dense,keyword,hybrid
+```
+
+See [`docs/evaluation.md`](docs/evaluation.md) for the dataset format, the metrics, and the
+first results.
+
 ## Develop
 
 ```bash

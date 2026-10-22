@@ -21,6 +21,7 @@ from typing import Any, Literal
 
 import numpy as np
 
+from raggity.observability import Timings
 from raggity.providers.embeddings import Embedder
 from raggity.providers.llm import LLM
 from raggity.retrieval.rerank import Reranker
@@ -44,6 +45,7 @@ class Hit:
 class SearchResult:
     hits: list[Hit]
     queries: list[str]  # the queries actually searched, after any transform
+    timings: Timings = field(default_factory=Timings)
 
 
 def reciprocal_rank_fusion(rankings: list[list[str]], k: int = RRF_K) -> dict[str, float]:
@@ -76,69 +78,85 @@ class Retriever:
         rerank: bool = False,
         metadata_filter: dict[str, Any] | None = None,
         candidates: int = 30,
+        timings: Timings | None = None,
     ) -> SearchResult:
+        t = timings or Timings()
         if collection.embedder != self.embedder.name:
             raise ValueError(
                 f"collection was embedded with {collection.embedder} but the service is "
                 f"running {self.embedder.name}; vectors from different models can't be compared"
             )
-        queries = self._transform(query, transform)
-        allowed = self._allowed_documents(collection.id, metadata_filter)
+        with t.stage("query_transform"):
+            queries = self._transform(query, transform)
+        with t.stage("metadata_filter"):
+            allowed = self._allowed_documents(collection.id, metadata_filter)
 
         rankings: list[list[str]] = []
         stage_scores: dict[str, dict[str, float]] = defaultdict(dict)
         for i, q in enumerate(queries):
             if mode in ("dense", "hybrid"):
-                text = self._hypothetical_answer(q) if transform == "hyde" else q
-                ranked = self._dense(collection.id, text, candidates, allowed)
+                if transform == "hyde":
+                    with t.stage("hyde"):
+                        text = self._hypothetical_answer(q)
+                else:
+                    text = q
+                ranked = self._dense(collection.id, text, candidates, allowed, t)
                 rankings.append([cid for cid, _ in ranked])
                 for cid, s in ranked:
                     stage_scores[cid].setdefault(f"dense[{i}]", s)
             if mode in ("keyword", "hybrid"):
-                ranked = self._keyword(collection.id, q, candidates, allowed)
+                with t.stage("bm25"):
+                    ranked = self._keyword(collection.id, q, candidates, allowed)
                 rankings.append([cid for cid, _ in ranked])
                 for cid, s in ranked:
                     stage_scores[cid].setdefault(f"bm25[{i}]", s)
 
-        if len(rankings) == 1:
-            # A single ranking needs no fusion: keep its own scores.
-            fused = {cid: next(iter(stage_scores[cid].values())) for cid in rankings[0]}
-        else:
-            fused = reciprocal_rank_fusion(rankings)
-            for cid, s in fused.items():
-                stage_scores[cid]["rrf"] = s
+        with t.stage("fusion"):
+            if len(rankings) == 1:
+                # A single ranking needs no fusion: keep its own scores.
+                fused = {cid: next(iter(stage_scores[cid].values())) for cid in rankings[0]}
+            else:
+                fused = reciprocal_rank_fusion(rankings)
+                for cid, s in fused.items():
+                    stage_scores[cid]["rrf"] = s
+            shortlist = sorted(fused, key=lambda cid: fused[cid], reverse=True)[:candidates]
 
-        shortlist = sorted(fused, key=lambda cid: fused[cid], reverse=True)[:candidates]
-        chunks = self.store.chunks(shortlist)
+        with t.stage("fetch_chunks"):
+            chunks = self.store.chunks(shortlist)
         hits = [
             Hit(chunks[cid], fused[cid], stage_scores[cid]) for cid in shortlist if cid in chunks
         ]
 
         if rerank and hits:
-            new_scores = self.reranker.score(query, [hit.chunk.text for hit in hits])
+            with t.stage("rerank"):
+                new_scores = self.reranker.score(query, [hit.chunk.text for hit in hits])
             for hit, s in zip(hits, new_scores, strict=True):
                 hit.scores["rerank"] = s
                 hit.score = s
             hits.sort(key=lambda hit: hit.score, reverse=True)
 
-        return SearchResult(hits[:top_k], queries)
+        return SearchResult(hits[:top_k], queries, t)
 
     # -- stages -----------------------------------------------------------------------
 
     def _dense(
-        self, collection_id: str, text: str, limit: int, allowed: set[str] | None
+        self, collection_id: str, text: str, limit: int, allowed: set[str] | None, t: Timings
     ) -> list[tuple[str, float]]:
-        ids, matrix = self.store.vectors(collection_id)
+        with t.stage("load_vectors"):
+            ids, matrix = self.store.vectors(collection_id)
         if not ids:
             return []
-        if allowed is not None:
-            keep = [i for i, cid in enumerate(ids) if _document_of(cid) in allowed]
-            ids, matrix = [ids[i] for i in keep], matrix[keep]
-            if not ids:
-                return []
-        similarities = matrix @ self.embedder.embed_query(text)  # cosine: vectors are unit length
-        top = np.argsort(-similarities)[:limit]
-        return [(ids[i], float(similarities[i])) for i in top]
+        with t.stage("embed_query"):
+            query_vector = self.embedder.embed_query(text)
+        with t.stage("dense_scoring"):
+            if allowed is not None:
+                keep = [i for i, cid in enumerate(ids) if _document_of(cid) in allowed]
+                ids, matrix = [ids[i] for i in keep], matrix[keep]
+                if not ids:
+                    return []
+            similarities = matrix @ query_vector  # cosine: the vectors are unit length
+            top = np.argsort(-similarities)[:limit]
+            return [(ids[i], float(similarities[i])) for i in top]
 
     def _keyword(
         self, collection_id: str, query: str, limit: int, allowed: set[str] | None

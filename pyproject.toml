@@ -14,11 +14,16 @@ dependencies = [
     "numpy>=1.26",
     "httpx>=0.27",
     "pypdf>=5.0",
+    "prometheus-client>=0.26.0",
 ]
+
+[project.scripts]
+raggity-eval = "raggity.evaluation:main"
+raggity-ingest = "raggity.ingest_cli:main"
 
 [project.optional-dependencies]
 # Each provider is an extra so you only install what you use.
-local = ["sentence-transformers>=3.0"]   # local embeddings + cross-encoder reranker
+local = ["sentence-transformers>=6.0"]   # local embeddings + cross-encoder reranker
 anthropic = ["anthropic>=1.0"]
 openai = ["openai>=1.40"]
 all = ["raggity[local,anthropic,openai]"]

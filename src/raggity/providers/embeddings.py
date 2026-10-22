@@ -66,7 +66,7 @@ class SentenceTransformerEmbedder:
         from sentence_transformers import SentenceTransformer
 
         self._model = SentenceTransformer(model)
-        self.dim = int(self._model.get_sentence_embedding_dimension() or 0)
+        self.dim = int(self._model.get_embedding_dimension() or 0)
         self.name = f"sentence-transformers:{model}"
 
     def embed_documents(self, texts: list[str]) -> np.ndarray:

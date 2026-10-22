@@ -38,6 +38,9 @@ class DocumentOut(BaseModel):
     metadata: dict[str, Any]
     chunk_count: int
     created_at: str
+    timings_ms: dict[str, float] | None = Field(
+        None, description="per-stage ingest time; only on the response to an upload"
+    )
 
 
 class SearchRequest(BaseModel):
@@ -62,9 +65,13 @@ class ChunkOut(BaseModel):
     metadata: dict[str, Any]
 
 
+TIMINGS_DESCRIPTION = "milliseconds per pipeline stage, plus the total"
+
+
 class SearchResponse(BaseModel):
     queries: list[str]
     results: list[ChunkOut]
+    timings_ms: dict[str, float] = Field(description=TIMINGS_DESCRIPTION)
 
 
 class AnswerResponse(BaseModel):
@@ -73,3 +80,4 @@ class AnswerResponse(BaseModel):
     sources: list[ChunkOut] = Field(description="every source the model was shown")
     queries: list[str]
     model: str
+    timings_ms: dict[str, float] = Field(description=TIMINGS_DESCRIPTION)

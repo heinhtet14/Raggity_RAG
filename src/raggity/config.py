@@ -6,6 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 EmbeddingProvider = Literal["hash", "sentence-transformers", "openai", "ollama"]
@@ -19,6 +20,13 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="RAGGITY_", env_file=".env", extra="ignore")
 
     data_dir: Path = Path("data")
+
+    # Shared secret callers send as `Authorization: Bearer <key>` or `x-api-key`. Unset means
+    # no auth at all, which is only for local development.
+    api_key: SecretStr | None = None
+
+    # Keep each collection's vector matrix in memory between queries.
+    vector_cache: bool = True
 
     # Embeddings: "hash" needs nothing installed and is only good for tests and demos.
     embedding_provider: EmbeddingProvider = "hash"
