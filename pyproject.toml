@@ -1,0 +1,50 @@
+[project]
+name = "raggity"
+version = "0.1.0"
+description = "A small, readable RAG microservice for a companion agent to call"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.4",
+    "python-multipart>=0.0.9",
+    "numpy>=1.26",
+    "httpx>=0.27",
+    "pypdf>=5.0",
+]
+
+[project.optional-dependencies]
+# Each provider is an extra so you only install what you use.
+local = ["sentence-transformers>=3.0"]   # local embeddings + cross-encoder reranker
+anthropic = ["anthropic>=1.0"]
+openai = ["openai>=1.40"]
+all = ["raggity[local,anthropic,openai]"]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "pyright>=1.1.380", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/raggity"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+reportMissingImports = "warning"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
